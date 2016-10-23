@@ -1,0 +1,134 @@
+# Project Analysis R code divided into different steps
+# Uploading a csv file from  
+
+Data <- read.csv(file = "Crash_Clean_all.csv", header = TRUE)
+View(Data)
+names(Data)
+
+-----------------------------------------------------------------
+  
+# Selecting variables i.e. columns from the table
+  
+Var_data <- Data[c(1, 5, 6, 8)]
+View(Var_data)
+
+#Cleaning Variable 
+Var_data[Var_data == ""] <- NA
+
+Data <- na.omit(Var_data)
+View(Var_clean)
+
+----------------------------------------------------------------------------
+  
+# Segmenting different times into five group Mid Night, Morning, Afternoon, Evening, Night   
+
+Data$Time_new  <- strptime(x = as.character(Data$TIME), format = "%H:%M")
+View()
+
+as.string(Data$Group)
+Data$Group[] <- lapply(Data$Group, as.character)
+
+Data$Group[Data$Time_new >= '2016-10-17 00:00:00' &
+             Data$Time_new < '2016-10-17 04:59:00'] <- "Mid_Night"
+Data$Group[Data$Time_new >= '2016-10-17 05:00:00' &
+             Data$Time_new < '2016-10-17 11:59:00'] <- "Morning"
+Data$Group[Data$Time_new >= '2016-10-17 12:00:00' &
+             Data$Time_new < '2016-10-17 16:59:00'] <- "Afternoon"
+Data$Group[Data$Time_new >= '2016-10-17 17:00:00' &
+             Data$Time_new < ' 2016-10-17 19:59:00'] <- "Evening"
+Data$Group[Data$Time_new >= '2016-10-17 20:00:00' &
+             Data$Time_new < '2016-10-17 23:59:00'] <- "Night"
+
+View(Data)
+
+-------------------------------------------------------------------------------------
+  
+# Calculating frequency of streets and changing column names
+  
+Streets <- data.frame(table(Data$ON.STREET.NAME))
+View(Streets)
+
+library(data.table)
+setDT(Streets)[, z := (Freq / sum(Freq))]
+View(Streets)
+
+# Dividing Frequency into 10 segments
+library(Hmisc) # cut2
+Streets$Type <- as.numeric(cut2(Streets$Freq, g = 10))
+
+# Renaming column names
+
+library(plyr)
+rename(Streets,
+       c(
+         "Var1" = "Street Name",
+         "z" = "Relative_Frequency",
+         "Type" = "Road Type"
+       ))
+
+View(Streets)
+
+write.csv(file = "Crash_rate.csv", x = Streets)
+
+------------------------------------------------------------------------
+  
+# Calculating Frequency of time "Group" and plotting "Road Type" and "Time of the Day"
+  
+Crash_time <- data.frame(table(Data$Group))
+
+library(data.table)
+setDT(Crash_time)[, Time_z := (Freq / sum(Freq))]
+View(Crash_time)
+
+
+plot(
+  Crash_time$Var1,
+  Crash_time$Time_z,
+  xlab = "Time of the day",
+  ylab = "Frequency of Accidents",
+  col2rgb(136, alpha = FALSE)
+)
+-------------------------------------------------------------------------
+  
+# For checking Results  
+
+sum(Streets$z)
+mean(Streets$z)
+
+
+-------------------------------------------------------------------------
+  
+# Map Visuailization  
+
+Crash <- read.csv(file = "Crash.csv", header = TRUE)
+View(Crash) 
+  
+library(ggmap)
+map <- get_map(location = "New York", zoom = "auto" , source = "google", scale="auto")
+ggmap(map)
+
+
+mapPoints <- ggmap(map) +  geom_point(data = Crash, aes(x = as.numeric(Longitude), y = as.numeric(Latitude), colour = "red" ), alpha =0.8, size = 1, shape = 21)
+mapPoints
+
+-------------------------------------------------------------------------------------
+  
+# For routing between points  
+  
+from <- 'Foley Square, New york, USA'
+to <- 'VESEY STREET'
+route_df <- route(from, to, structure = 'route', mode = 'Driving')
+qmap('New york, USA', zoom = 16) +
+  geom_path(
+    aes(x = lon, y = lat),  colour = 'red', size = 1.5,
+    data = route_df, lineend = 'round')
+------------------------------------------------------------------------------------
+  
+# Density plot
+  
+#plot the roads Google Maps basemap
+  map <- qmap('New york, USA', zoom = 12, maptype = 'roadmap')
+
+#plot the density map
+map + stat_density2d( aes(x = Longitude, y = Latitude ), size = 2, bins = 5, data = Crash , geom = "polygon", fill = ..level.., alpha = ..level..*2) +
+  scale_fill_gradient(low = "black", high = "red")
